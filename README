@@ -1,0 +1,116 @@
+Tanner Young-Schultz
+This is a basic assembler I made to convert the (basic) lab 6 assembly language into
+a mif file, which you can set as your boards memory mif file to initialize.
+
+Here are a few things you need to know before using
+
+1) The Input File Format (to the miffer program)
+2) Compiling the program
+3) Running the Program
+4) Assumptions Made 		!!Please see this section, important!!
+
+
+
+1) Input File Format
+ 
+The input file format is very basic. A sample input file has
+been provided as an example with this program (example_input_file.tys).
+
+The input file IGNORES BLANK NEW LINES. The input file line numbers start indexing  at 
+line number 0 (for error messages). 
+The '#' symbol are treated as comments, 
+the assembler will ignore theis line (no multi line comments)
+
+Seen in the sample input file, writing:
+DEPTH = x
+WIDTH = y
+
+will set the depth of memory to be x 'widths' (x addresses), and setting the width 
+of memory will set the memory contents to be y bits wide. If this is not included in the
+file, the default values are used:  DEPTH = 128 and WIDTH = 16 (as per the lab6 handout).
+The 'depth' and 'width' keywords are case INsensitive.
+
+The program accepts the 6 instructions outlined in the lab handout (and is ready for more!).
+The instructions and regisiter values (which currently range from r0 - r7) are 
+case INSENSITIVE. One thing to note is the mvi instruction. A 16 bit UNSIGNED immediate value
+is given as the last argument (not a register value). In the mif file, this instruction will 
+be represented on two seperate lines (addresses), as specified in the lab handout.
+
+mv rx ry
+mvi rx IMMU16
+add rx ry
+sub rx ry
+ld rx ry
+st rx ry
+mvnz rx ry
+  
+A little more about each instruction:
+mv: moves the contents of register ry into register rx
+mvi: moves the immediate value IMM16 into register rx
+add: adds regsiters rx and ry and stores the result in rx
+sub: subtracts ry from rx (rx - ry) and stores the result in rx
+ld: loads the memory contents of memory at address ry, into register rx
+st: stores the contents of register rx, into memory at the address of ry
+mvnz: conditionally moves the contents of register ry into register rx, IFF register G != 0
+
+
+
+
+2) Compiling
+To compile the program, simply run the following command in the asm_to_mif directory:
+
+	g++ main.cpp to_mif.cpp -o miffer
+
+Obviously you need a g++ compiler
+
+
+
+3) Running the program
+The program accepts 2 arguments in a particular order. It requires the input file name (the 
+written assembly code in the format specified in section 1). It also takes an optional
+argument for the output file name. If no name is specified, the name "the_mif.mif" is used
+by default (so if you don't specificy, look for this in your directory)
+
+The following example shows how you would assemble the example input file:
+
+	./miffer example_input_file.tys		//produces the_mif.mif output file
+	./miffer example_input_file.tys a.mif	//produces a.mif output file
+	./miffer example_input_file.tys a	//produces a.mif output file (appends .mif)
+
+In general to run:
+	./miffer input_file_name.tys output_file_name.mif  //produces output_file_name.mif
+	./miffer input_file_name.tys 			   //produces the_mif.mif  
+
+
+
+
+4) Assumptions
+When creating this program, I had to make one major assumption. I had to assume a certain 
+encoding for each instruction (to create the mif file). Here are the assumptions I made:
+
+!!ASSUMED ENCODINGS IN VERILOG PROJECT!!
+mv:	3'b000
+mvi:	3'b001
+add:	3'b010
+sub:	3'b011
+ld:	3'b100
+st:	3'b101
+mvnz:	3'b110
+
+
+If these are not the encodings you used, you have two options. 
+1) Change your encodings in the verilog project. This shouldn't be that difficult,
+   you should have parameters you can quickly change to match my encodings
+2) Open up to_mif.h and change the define statements for MV, MVI, ADD, SUB, LD, ST, and MVNZ
+   to match your encodings and REBUILD!
+
+I suggest option 2!
+
+
+
+
+
+Good luck, and I hope this program can speed up your debugging of lab 6!
+Let me know of any issues and I will fix them!
+
+Tanner Young-Schultz

@@ -1,0 +1,13 @@
+DEPTH 128
+WIDTH 16
+
+#starts at 5 and counts to 0, displaying the count on LEDR on each cycle
+#note hex or decimal for immediate values works!
+mvi r1 0x1000
+mvi r0 5	 #comments can go here, with a tab or space
+mvi r3 1
+mv r4 r7
+st r0 r1
+sub r0 r3
+mvnz r7 r4
+
