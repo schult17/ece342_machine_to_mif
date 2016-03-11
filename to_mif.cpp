@@ -269,7 +269,7 @@ void write_to_file( string outfile, std::vector<int> instructions, int width, in
     file << "%Disclaimer: I tried%\n\n";
     file << "DEPTH = " << depth << ";\n";
     file << "WIDTH = " << width << ";\n";
-    file << "ADDRESS_RADIX = DEC;\n";
+    file << "ADDRESS_RADIX = HEX;\n";
     file << "DATA_RADIX = HEX; %using hex to be able to debug easier%\n\n";
     
     file << "CONTENT\n";
