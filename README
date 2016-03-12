@@ -107,6 +107,15 @@ If these are not the encodings you used, you have two options.
 I suggest option 2!
 
 
+Another assumption is the position of the instruction, x, and y registers in memory itself. I assumed (and this assumption is crucial in the encoding) that each 16 bits
+is laid out as followed:
+
+	15		 0
+	 DDDDDDDIIIXXXYYY
+
+Where D is don’t care, I is for instruction (3 bits), X is for x register (3 bits)
+and Y is for y register (3 bits)
+
 
 
 

@@ -1,10 +1,10 @@
 %For use in ECE342, Lab6%
 %Disclaimer: I tried%
 
-DEPTH = 128;
 WIDTH = 16;
-ADDRESS_RADIX = DEC;
-DATA_RADIX = HEX; %using hex to be able to debug easier%
+DEPTH = 128;
+ADDRESS_RADIX = HEX;
+DATA_RADIX = HEX;
 
 CONTENT
 BEGIN
@@ -18,4 +18,6 @@ BEGIN
 7 : 0141;
 8 : 00C3;
 9 : 01BC;
+A : 0078;
+B : 0000;
 END;
