@@ -12,6 +12,7 @@
 #define LD 4
 #define ST 5
 #define MZ 6
+#define BEQ 7
 
 //instructions
 const std::string MOVE = "mv";
@@ -21,6 +22,7 @@ const std::string SUBTRACT = "sub";
 const std::string LOAD = "ld";
 const std::string STORE = "st";
 const std::string MVNZ = "mvnz";
+const std::string BREQ = "beq";
 
 //error codes
 #define NO_ERROR 0

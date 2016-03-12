@@ -360,6 +360,8 @@ int parse_i( std::string i, int *error )
         ret = ST;
     else if( i == MVNZ )
         ret = MZ;
+    else if( i == BREQ )
+        ret = BEQ;
     else
         *error = BAD_INSTR;
     
