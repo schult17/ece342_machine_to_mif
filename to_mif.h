@@ -39,6 +39,7 @@ const std::string BREQ = "beq";
 #define LABEL_REDEF 11
 #define IMMED_LABEL_NF 12
 #define WIDTH_DEPTH_ERROR 13
+#define TO_MUCH_FOR_DEPTH 14
 
 //error signals (not errors)
 #define ONLY_LABEL 11
@@ -76,12 +77,12 @@ int mask_mif_instr( int i, int rx, int ry );
 int parse_define( std::string line );
 std::string to_lower( std::string str );
 int is_all_space( std::string i );
-int is_instruction_mvi( int instr );
+int is_instruction_mvi_or_beq( int instr );
 
 std::string instruction_to_str_comment( int instr, int next_instr );
 
 void write_to_file( std::string outfile, std::vector<int> instructions, int width, int depth );
 
-void print_error_message( int code, int line );
+void print_error_message( int code, int line, int depth, int instruction_count );
 
 #endif

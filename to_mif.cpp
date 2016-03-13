@@ -31,7 +31,7 @@ int assemble( char *infile, char *outfile )
         
         if( error != NO_ERROR )
         {
-            print_error_message( error, line );
+            print_error_message( error, line, -1, -1 );
         }
         else
         {
@@ -42,12 +42,12 @@ int assemble( char *infile, char *outfile )
             if( error == NO_ERROR )
                 write_to_file( fout, instructions, width, depth );
             else
-                print_error_message( error, line );
+                print_error_message( error, line, depth, instructions.size() );
         }
     }
-    else
+    else    //only file errors here
     {
-        print_error_message( error, 0 );
+        print_error_message( error, 0, -1, -1 );
     }
     
     return 0;
@@ -191,7 +191,7 @@ vector<int> parse_fin( string infile, int *width, int *depth, int *error_code, i
                 if( error == NO_ERROR )
                 {
                     mif.push_back( add[0] );
-                    if( add.size() == 2 )   mif.push_back( add[1] );    //mvi
+                    if( add.size() == 2 )   mif.push_back( add[1] );    //mvi or beq
                 }
                 else if( error != ONLY_LABEL )  //skip to next line if this line was only a label
                 {
@@ -206,8 +206,9 @@ vector<int> parse_fin( string infile, int *width, int *depth, int *error_code, i
         line += 1;  //increment line even on blank lines
     }
     
+    //if we get here, we have no gotten an error yet, check if code takes up too much memory
+    *error_code = ( mif.size() > *depth ) ? TO_MUCH_FOR_DEPTH : NO_ERROR;
     *line_number = line;
-    *error_code = NO_ERROR;
     file.close();
     return mif;
 }
@@ -217,7 +218,7 @@ std::vector<int> parse_instruction( std::string instr, int *error, int curr_inst
     vector<int> ret;
     int mif_instr = -1;
     
-    string in_s = "", rx_s = "", ry_s = "";
+    string in_s = "", rx_s = "", ry_s = "", imm_s = "";
     
     remove_pre_space( instr );
     
@@ -241,6 +242,7 @@ std::vector<int> parse_instruction( std::string instr, int *error, int curr_inst
         remove_pre_space( instr );  //do this again after label
     }
     
+    //parsing out the instruction, rx, ry and or immediate value
     int i = 0;
     int entry = 0;
     while( i < instr.length() )
@@ -262,6 +264,9 @@ std::vector<int> parse_instruction( std::string instr, int *error, int curr_inst
                 case 2:
                     ry_s.push_back( instr[i] );
                     break;
+                case 3: //only for beq
+                    imm_s.push_back( instr[i] );
+                    break;
                 default:
                     break;
             }
@@ -277,10 +282,12 @@ std::vector<int> parse_instruction( std::string instr, int *error, int curr_inst
     instruction = parse_i( in_s, &error_i );
     rx = parse_reg( rx_s, &error_reg_x );
     
-    if( instruction != MVI )
-        ry = parse_reg( ry_s, &error_reg_y );
-    else
+    if( instruction == MVI )
         imm = parse_immediate( ry_s, &error_imm );
+    else if( instruction == BEQ  )
+        imm = parse_immediate( imm_s, &error_imm );
+    else
+        ry = parse_reg( ry_s, &error_reg_y );
     
     *error = NO_ERROR;
     if( error_i != NO_ERROR )
@@ -295,9 +302,12 @@ std::vector<int> parse_instruction( std::string instr, int *error, int curr_inst
         mif_instr = mask_mif_instr( instruction, rx, ry );
     //---------------------------------------------------//
     
+    //add the instruction
     ret.push_back( mif_instr );
     
-    if( instruction == MVI )    //move instruction needs 2 mif instructions
+    //move immediate and beq instruction needs 2 mif instructions
+    //second is the immediate value
+    if( instruction == MVI || instruction == BEQ )
         ret.push_back( imm );
     
     return ret;
@@ -492,8 +502,25 @@ void write_to_file( string outfile, std::vector<int> instructions, int width, in
     }
     
     //whats is actually written to the output file
+    //Some info in comments first
     file << "%For use in ECE342, Lab6%\n";
     file << "%Disclaimer: I tried%\n\n";
+    file << "%Assumed encodings (note, beq instruction is optional!):%\n";
+    file << "%\tmv = 3'b000\t%\n";
+    file << "%\tmvi = 3'b001\t%\n";
+    file << "%\tadd = 3'b010\t%\n";
+    file << "%\tsub = 3'b011\t%\n";
+    file << "%\tld = 3'b100\t%\n";
+    file << "%\tst = 3'b101\t%\n";
+    file << "%\tmvnz = 3'b110\t%\n";
+    file << "%\tbeq = 3'b111\t%\n\n";
+    file << "%Assumed positions of instruction and register in 16 bit input%\n";
+    file << "%I = instruction, X = x register, Y = y register, D = don't care%\n";
+    file << "%16      8       0%\n";
+    file << "% DDDDDDDIIIXXXYYY %\n\n";
+    //---------------------------//
+    
+    //start writing file
     file << "WIDTH = " << width << ";\n";
     file << "DEPTH = " << depth << ";\n";
     file << "ADDRESS_RADIX = HEX;\n";
@@ -503,7 +530,7 @@ void write_to_file( string outfile, std::vector<int> instructions, int width, in
     file << "BEGIN\n";
     
     int last_instr_mvi = 0;
-    int mvi_num = 0;
+    int mvi_beq_num = 0;
     
     for( int i = 0; i < instructions.size(); i++ )
     {
@@ -511,25 +538,25 @@ void write_to_file( string outfile, std::vector<int> instructions, int width, in
         file << i << " : " << hex << setw(4) << setfill('0') << uppercase << instructions[i];
         
         //cannot be last instructions if it is a mvi
-        if( is_instruction_mvi( instructions[i] ) )
+        if( is_instruction_mvi_or_beq( instructions[i] ) )
         {
             if( i < instructions.size() - 1 )   //double sure
-                mvi_num = instructions[i + 1];
+                mvi_beq_num = instructions[i + 1];
         }
         else
         {
-            mvi_num = -1;
+            mvi_beq_num = -1;
         }
             
         
-        //adding comment to line if this line is not second part of MVI instruction
+        //adding comment to line if this line is not second part of MVI or BEQ instruction
         if( last_instr_mvi )
             file << ";\n";
         else
-            file << ";\t%" << instruction_to_str_comment( instructions[i], mvi_num ) << "%\n";
+            file << ";\t%" << instruction_to_str_comment( instructions[i], mvi_beq_num ) << "%\n";
         
         
-        last_instr_mvi = is_instruction_mvi( instructions[i] );
+        last_instr_mvi = is_instruction_mvi_or_beq( instructions[i] );
     }
     
     file << "END;\n";
@@ -631,9 +658,9 @@ int is_all_space( std::string i )
     return 1;
 }
 
-int is_instruction_mvi( int instr )
+int is_instruction_mvi_or_beq( int instr )
 {
-    return ( instr >> 6 == MVI );
+    return ( instr >> 6 == MVI || instr >> 6 == BEQ );
 }
 
 std::string instruction_to_str_comment( int instr, int next_instr )
@@ -658,7 +685,7 @@ std::string instruction_to_str_comment( int instr, int next_instr )
 }
 
 //takes an error code and line number and prints the error message to STDOUT
-void print_error_message( int code, int line )
+void print_error_message( int code, int line, int depth, int instruction_count )
 {
     switch ( code )
     {
@@ -700,6 +727,9 @@ void print_error_message( int code, int line )
             break;
         case WIDTH_DEPTH_ERROR:
             cout << "ERROR : line " << line << ": bad declaration of width or depth flag (possibly lose the equals sign?)" << endl;
+            break;
+        case TO_MUCH_FOR_DEPTH:
+            cout << "ERROR MEMORY OVERFLOW: there are too many instructions for the depth of the memory: memory depth = " << depth << ", instruction count = " << instruction_count << "\n";
             break;
         default:
             cout << "ERROR: Unknown, I missed it :(" << endl;
