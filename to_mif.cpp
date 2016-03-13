@@ -502,8 +502,35 @@ void write_to_file( string outfile, std::vector<int> instructions, int width, in
     file << "CONTENT\n";
     file << "BEGIN\n";
     
+    int last_instr_mvi = 0;
+    int mvi_num = 0;
+    
     for( int i = 0; i < instructions.size(); i++ )
-        file << i << " : " << hex << setw(4) << setfill('0') << uppercase << instructions[i] << ";\n";
+    {
+        
+        file << i << " : " << hex << setw(4) << setfill('0') << uppercase << instructions[i];
+        
+        //cannot be last instructions if it is a mvi
+        if( is_instruction_mvi( instructions[i] ) )
+        {
+            if( i < instructions.size() - 1 )   //double sure
+                mvi_num = instructions[i + 1];
+        }
+        else
+        {
+            mvi_num = -1;
+        }
+            
+        
+        //adding comment to line if this line is not second part of MVI instruction
+        if( last_instr_mvi )
+            file << ";\n";
+        else
+            file << ";\t%" << instruction_to_str_comment( instructions[i], mvi_num ) << "%\n";
+        
+        
+        last_instr_mvi = is_instruction_mvi( instructions[i] );
+    }
     
     file << "END;\n";
     //---------------------------------------------//
@@ -602,6 +629,32 @@ int is_all_space( std::string i )
     }
     
     return 1;
+}
+
+int is_instruction_mvi( int instr )
+{
+    return ( instr >> 6 == MVI );
+}
+
+std::string instruction_to_str_comment( int instr, int next_instr )
+{
+    //build comment for
+    string ret = "";
+    int rx, ry, i;
+    
+    ry = (instr & 0x0007);              //0000 0000 0000 0111
+    rx = ( (instr >> 3 ) & 0x0007 );    //0000 0000 0011 1000
+    i = ( (instr >> 6 ) & 0x0007 );     //0000 0001 1100 0000
+    
+    ret.append( instr_to_str[i] );
+    ret.append( " " );
+    ret.append( reg_num_to_reg_name[rx] );
+    
+    ret.append( " " );
+    
+    ( i == MVI ) ? ret.append( std::to_string( next_instr ) ) : ret.append( reg_num_to_reg_name[ry] );
+    
+    return ret;
 }
 
 //takes an error code and line number and prints the error message to STDOUT

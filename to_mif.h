@@ -54,6 +54,8 @@ const std::string BREQ = "beq";
 const std::string DEF_KEY = ".define";
 
 static const char * const REG_NAMES_L[] = { "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7" };
+static const char * const instr_to_str[] = { "mv", "mvi", "add", "sub", "ld", "st", "mvnz", "beq" };
+static const char * const reg_num_to_reg_name[] = { "r0", "r1", "r2", "r3", "r4", "r5", "r7", "r7" };
 
 int assemble( char *infile, char *outfile );
 int find_all_labels( std::string infile, int *line_number );
@@ -74,6 +76,9 @@ int mask_mif_instr( int i, int rx, int ry );
 int parse_define( std::string line );
 std::string to_lower( std::string str );
 int is_all_space( std::string i );
+int is_instruction_mvi( int instr );
+
+std::string instruction_to_str_comment( int instr, int next_instr );
 
 void write_to_file( std::string outfile, std::vector<int> instructions, int width, int depth );
 
