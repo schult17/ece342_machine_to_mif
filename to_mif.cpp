@@ -77,15 +77,15 @@ ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int
     vector<int> add;
     size_t pos_depth, pos_width, pos_def;
     
+    bool lined_comment = false;
+    
     while( getline( file, instr ) )
     {
         if( instr != "" && instr != "\n" && !is_comment( instr ) )  //ignore new lines and comments
         {
             pos_width = instr.find( "WIDTH" );
-            if( pos_width == string::npos ) pos_width = instr.find( "width" );
             
             pos_depth = instr.find( "DEPTH" );
-            if( pos_depth == string::npos ) pos_depth = instr.find( "depth" );
             
             pos_def = instr.find( DEF_KEY );
             
@@ -99,6 +99,7 @@ ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int
                 
                 if( *endptr != '\0' )
                 {
+                    cout << instr << endl;
                     error = WIDTH_DEPTH_ERROR;
                     *line_number = line;
                     file.close();
@@ -129,6 +130,7 @@ ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int
                 
                 if( *endptr != '\0' )
                 {
+                    cout << instr << endl;
                     error = WIDTH_DEPTH_ERROR;
                     *line_number = line;
                     file.close();
@@ -200,10 +202,8 @@ vector<int> parse_fin( string infile, ErrorCode &error_code, int *line_number )
         if( instr != "" && instr != "\n" && !is_comment( instr ) )  //ignore new lines and comments
         {
             pos_width = instr.find( "WIDTH" );
-            if( pos_width == string::npos ) pos_width = instr.find( "width" );
         
             pos_depth = instr.find( "DEPTH" );
-            if( pos_depth == string::npos ) pos_depth = instr.find( "depth" );
             
             pos_def = instr.find( DEF_KEY );
         

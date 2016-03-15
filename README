@@ -28,7 +28,7 @@ DEPTH = x   (only integer multiples of 2 supported)
 will set the depth of memory to be x 'widths' (x addresses), and setting the width 
 of memory will set the memory contents to be y bits wide. If this is not included in the
 file, the default values are used:  DEPTH = 128 and WIDTH = 16 (as per the lab6 handout).
-The 'depth' and 'width' keywords are case INsensitive.
+The 'depth' and 'width' keywords are case SENSITIVE (also don't have width or depth in comments...)
 
 The program accepts the 6 instructions outlined in the lab handout (and is ready for more!).
 The instructions and regisiter values (which currently range from r0 - r7) are 
