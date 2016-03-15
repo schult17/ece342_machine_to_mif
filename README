@@ -22,8 +22,8 @@ The '#' symbol are treated as comments,
 the assembler will ignore theis line (no multi line comments)
 
 Seen in the sample input file, writing:
-DEPTH = x
-WIDTH = y
+WIDTH = y   (only 16 and 32 bit supported)
+DEPTH = x   (only integer multiples of 2 supported)
 
 will set the depth of memory to be x 'widths' (x addresses), and setting the width 
 of memory will set the memory contents to be y bits wide. If this is not included in the
@@ -32,12 +32,12 @@ The 'depth' and 'width' keywords are case INsensitive.
 
 The program accepts the 6 instructions outlined in the lab handout (and is ready for more!).
 The instructions and regisiter values (which currently range from r0 - r7) are 
-case INSENSITIVE. One thing to note is the mvi instruction. A 16 bit UNSIGNED immediate value
+case INSENSITIVE. One thing to note is the mvi instruction. A 16 or 32  bit UNSIGNED immediate value
 is given as the last argument (not a register value). In the mif file, this instruction will 
 be represented on two seperate lines (addresses), as specified in the lab handout.
 
 mv rx ry
-mvi rx IMMU16
+mvi rx IMMU16 or IMMU32 (depending on data width)
 add rx ry
 sub rx ry
 ld rx ry
@@ -108,13 +108,13 @@ I suggest option 2!
 
 
 Another assumption is the position of the instruction, x, and y registers in memory itself. I assumed (and this assumption is crucial in the encoding) that each 16 bits
-is laid out as followed:
+is laid out as followed (LITTLE ENDIAN):
 
 	15		 0
 	 DDDDDDDIIIXXXYYY
 
 Where D is don’t care, I is for instruction (3 bits), X is for x register (3 bits)
-and Y is for y register (3 bits)
+and Y is for y register (3 bits). The don't cares are extended to bit 31 for 32 bit widths.
 
 
 
