@@ -15,6 +15,7 @@ unordered_map<string, int> label_def_to_line_num;
 
 //global width for build
 int width_bits = 16;
+int depth_bytes = 128;
 
 int assemble( char *infile, char *outfile )
 {
@@ -31,7 +32,7 @@ int assemble( char *infile, char *outfile )
     if( error == NO_ERROR )
     {
         //first find all the labels
-        error = find_all_labels( fin, &line );
+        error = find_all_labels( fin, &line, &width, &depth );
         
         if( error != NO_ERROR )
         {
@@ -40,7 +41,7 @@ int assemble( char *infile, char *outfile )
         else
         {
             //if preprocess was good, parse the instructions
-            vector<int> instructions = parse_fin( fin, &width, &depth, error, &line );
+            vector<int> instructions = parse_fin( fin, error, &line );
     
             //if process was good, write mif file
             if( error == NO_ERROR )
@@ -58,13 +59,17 @@ int assemble( char *infile, char *outfile )
 }
 
 //find all labels and defines FIRST, inefficient, but whatever
-ErrorCode find_all_labels( std::string infile, int *line_number )
+ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int *depth)
 {
     ifstream file( infile );
     
     //make sure file exists
     if( file.fail() )
         return BAD_FILE;
+    
+    //default width and depth
+    *width = width_bits = 16;
+    *depth = depth_bytes = 128;
     
     string instr;
     ErrorCode error;
@@ -85,14 +90,74 @@ ErrorCode find_all_labels( std::string infile, int *line_number )
             pos_def = instr.find( DEF_KEY );
             
             //finding labels and defines
-            if( pos_def != string::npos )
+            if( pos_width != string::npos )
+            {
+                instr.erase( 0, pos_width + 5 );
+                
+                char *endptr;
+                int num = strtol( instr.c_str(), &endptr, 0 );
+                
+                if( *endptr != '\0' )
+                {
+                    error = WIDTH_DEPTH_ERROR;
+                    *line_number = line;
+                    file.close();
+                    return error;
+                }
+                else
+                {
+                    if( num != 32 && num != 16 )
+                    {
+                        error = WIDTH_ERROR;
+                        *line_number = line;
+                        file.close();
+                        return error;
+                    }
+                    else
+                    {
+                        *width = num;
+                        width_bits = num;
+                    }
+                }
+            }
+            else if( pos_depth != string::npos)
+            {
+                instr.erase( 0, pos_depth + 5 );
+                
+                char *endptr;
+                int num = strtol( instr.c_str(), &endptr, 0 );
+                
+                if( *endptr != '\0' )
+                {
+                    error = WIDTH_DEPTH_ERROR;
+                    *line_number = line;
+                    file.close();
+                    return error;
+                }
+                else
+                {
+                    if( num % 2 )
+                    {
+                        error = DEPTH_ERROR;
+                        *line_number = line;
+                        file.close();
+                        return error;
+                    }
+                    else
+                    {
+                        *depth = num;
+                        depth_bytes = num;
+                    }
+                }
+            }
+            else if( pos_def != string::npos )
             {
                 error = parse_define( instr );
                 
                 if( error != NO_ERROR ) //got error on define
                     break;
             }
-            else if( !( pos_width != string::npos || pos_depth != string::npos ) )   //ignore depth and width in pre process
+            else
             {
                 add = parse_instruction( instr, error, instruction_num - 1, PRE_PROCESS );
                 
@@ -112,12 +177,8 @@ ErrorCode find_all_labels( std::string infile, int *line_number )
     return error;
 }
 
-vector<int> parse_fin( string infile, int *width, int *depth, ErrorCode &error_code, int *line_number )
+vector<int> parse_fin( string infile, ErrorCode &error_code, int *line_number )
 {
-    //default width and depth
-    *width = 16;
-    *depth = 128;
-    
     vector<int> mif;
     ifstream file( infile );
     
@@ -132,7 +193,7 @@ vector<int> parse_fin( string infile, int *width, int *depth, ErrorCode &error_c
     ErrorCode error;
     int line = 0;
     vector<int> add;
-    size_t pos_depth, pos_width, pos_def;
+    size_t pos_depth = 0, pos_width = 0, pos_def = 0;
     
     while( getline( file, instr ) )
     {
@@ -146,70 +207,8 @@ vector<int> parse_fin( string infile, int *width, int *depth, ErrorCode &error_c
             
             pos_def = instr.find( DEF_KEY );
         
-            if( pos_width != string::npos )
-            {
-                instr.erase( 0, pos_width + 5 );
-                
-                char *endptr;
-                int num = strtol( instr.c_str(), &endptr, 0 );
-                
-                if( *endptr != '\0' )
-                {
-                    error_code = WIDTH_DEPTH_ERROR;
-                    *line_number = line;
-                    file.close();
-                    return mif;
-                }
-                else
-                {
-                    if( num != 32 && num != 16 )
-                    {
-                        error_code = WIDTH_ERROR;
-                        *line_number = line;
-                        file.close();
-                        return mif;
-                    }
-                    else
-                    {
-                        *width = num;
-                        width_bits = num;
-                    }
-                }
-            }
-            else if( pos_depth != string::npos)
-            {
-                instr.erase( 0, pos_depth + 5 );
-                
-                char *endptr;
-                int num = strtol( instr.c_str(), &endptr, 0 );
-                
-                if( *endptr != '\0' )
-                {
-                    error_code = WIDTH_DEPTH_ERROR;
-                    *line_number = line;
-                    file.close();
-                    return mif;
-                }
-                else
-                {
-                    if( num % 2 )
-                    {
-                        error_code = DEPTH_ERROR;
-                        *line_number = line;
-                        file.close();
-                        return mif;
-                    }
-                    else
-                    {
-                        *depth = num;
-                    }
-                }
-            }
-            else if( pos_def != string::npos )
-            {
-                //do nothing, already handled this in PRE_PROCESS
-            }
-            else
+            //all these cases handled in pre processing
+            if( !(pos_width != string::npos || pos_depth != string::npos || pos_def != string::npos) )
             {
                 add = parse_instruction( instr, error, mif.size() - 1, PROCESS );
             
@@ -232,7 +231,7 @@ vector<int> parse_fin( string infile, int *width, int *depth, ErrorCode &error_c
     }
     
     //if we get here, we have no gotten an error yet, check if code takes up too much memory
-    error_code = ( mif.size() > *depth ) ? TO_MUCH_FOR_DEPTH : NO_ERROR;
+    error_code = ( mif.size() > depth_bytes ) ? TO_MUCH_FOR_DEPTH : NO_ERROR;
     *line_number = line;
     file.close();
     return mif;

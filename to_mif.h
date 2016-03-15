@@ -70,8 +70,8 @@ static const char * const INSTRU_TO_STR_LIST[] = { "mv", "mvi", "add", "sub", "l
 
 //Main assembling and parsing functions
 int assemble( char *infile, char *outfile );
-ErrorCode find_all_labels( std::string infile, int *line_number );
-std::vector<int> parse_fin( std::string infile, int *width, int *depth, ErrorCode &error_code, int *line_number );
+ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int *depth );
+std::vector<int> parse_fin( std::string infile, ErrorCode &error_code, int *line_number );
 std::vector<int> parse_instruction( std::string instr, ErrorCode &error, int curr_instruction_num, int stage );
 std::string parse_labelled_line( std::string instruc, int curr_instr_num, ErrorCode &error, int stage );
 
