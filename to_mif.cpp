@@ -13,6 +13,9 @@ using namespace std;
 //define and label map
 unordered_map<string, int> label_def_to_line_num;
 
+//global width for build
+int width_bits = 16;
+
 int assemble( char *infile, char *outfile )
 {
     string fin = infile;
@@ -20,7 +23,8 @@ int assemble( char *infile, char *outfile )
     
     look_at_outputfilename( fout );
     
-    int width, depth, error, line;
+    int width, depth, line;
+    ErrorCode error;
     
     error = look_at_inputfilename( fin );
     
@@ -36,7 +40,7 @@ int assemble( char *infile, char *outfile )
         else
         {
             //if preprocess was good, parse the instructions
-            vector<int> instructions = parse_fin( fin, &width, &depth, &error, &line );
+            vector<int> instructions = parse_fin( fin, &width, &depth, error, &line );
     
             //if process was good, write mif file
             if( error == NO_ERROR )
@@ -54,7 +58,7 @@ int assemble( char *infile, char *outfile )
 }
 
 //find all labels and defines FIRST, inefficient, but whatever
-int find_all_labels( std::string infile, int *line_number )
+ErrorCode find_all_labels( std::string infile, int *line_number )
 {
     ifstream file( infile );
     
@@ -63,7 +67,7 @@ int find_all_labels( std::string infile, int *line_number )
         return BAD_FILE;
     
     string instr;
-    int error;
+    ErrorCode error;
     int line = 0, instruction_num = 0;
     vector<int> add;
     size_t pos_depth, pos_width, pos_def;
@@ -90,7 +94,7 @@ int find_all_labels( std::string infile, int *line_number )
             }
             else if( !( pos_width != string::npos || pos_depth != string::npos ) )   //ignore depth and width in pre process
             {
-                add = parse_instruction( instr, &error, instruction_num - 1, PRE_PROCESS );
+                add = parse_instruction( instr, error, instruction_num - 1, PRE_PROCESS );
                 
                 if( error == NO_ERROR )
                     instruction_num += add.size();
@@ -108,7 +112,7 @@ int find_all_labels( std::string infile, int *line_number )
     return error;
 }
 
-vector<int> parse_fin( string infile, int *width, int *depth, int *error_code, int *line_number )
+vector<int> parse_fin( string infile, int *width, int *depth, ErrorCode &error_code, int *line_number )
 {
     //default width and depth
     *width = 16;
@@ -120,12 +124,12 @@ vector<int> parse_fin( string infile, int *width, int *depth, int *error_code, i
     //make sure file exists
     if( file.fail() )
     {
-        *error_code = BAD_FILE;
+        error_code = BAD_FILE;
         return mif;
     }
     
     string instr;
-    int error;
+    ErrorCode error;
     int line = 0;
     vector<int> add;
     size_t pos_depth, pos_width, pos_def;
@@ -151,14 +155,25 @@ vector<int> parse_fin( string infile, int *width, int *depth, int *error_code, i
                 
                 if( *endptr != '\0' )
                 {
-                    *error_code = WIDTH_DEPTH_ERROR;
+                    error_code = WIDTH_DEPTH_ERROR;
                     *line_number = line;
                     file.close();
                     return mif;
                 }
                 else
                 {
-                    *width = num;
+                    if( num != 32 && num != 16 )
+                    {
+                        error_code = WIDTH_ERROR;
+                        *line_number = line;
+                        file.close();
+                        return mif;
+                    }
+                    else
+                    {
+                        *width = num;
+                        width_bits = num;
+                    }
                 }
             }
             else if( pos_depth != string::npos)
@@ -170,14 +185,24 @@ vector<int> parse_fin( string infile, int *width, int *depth, int *error_code, i
                 
                 if( *endptr != '\0' )
                 {
-                    *error_code = WIDTH_DEPTH_ERROR;
+                    error_code = WIDTH_DEPTH_ERROR;
                     *line_number = line;
                     file.close();
                     return mif;
                 }
                 else
                 {
-                    *depth = num;
+                    if( num % 2 )
+                    {
+                        error_code = DEPTH_ERROR;
+                        *line_number = line;
+                        file.close();
+                        return mif;
+                    }
+                    else
+                    {
+                        *depth = num;
+                    }
                 }
             }
             else if( pos_def != string::npos )
@@ -186,7 +211,7 @@ vector<int> parse_fin( string infile, int *width, int *depth, int *error_code, i
             }
             else
             {
-                add = parse_instruction( instr, &error, mif.size() - 1, PROCESS );
+                add = parse_instruction( instr, error, mif.size() - 1, PROCESS );
             
                 if( error == NO_ERROR )
                 {
@@ -195,7 +220,7 @@ vector<int> parse_fin( string infile, int *width, int *depth, int *error_code, i
                 }
                 else if( error != ONLY_LABEL )  //skip to next line if this line was only a label
                 {
-                    *error_code = error;
+                    error_code = error;
                     *line_number = line;
                     file.close();
                     return mif;
@@ -207,35 +232,35 @@ vector<int> parse_fin( string infile, int *width, int *depth, int *error_code, i
     }
     
     //if we get here, we have no gotten an error yet, check if code takes up too much memory
-    *error_code = ( mif.size() > *depth ) ? TO_MUCH_FOR_DEPTH : NO_ERROR;
+    error_code = ( mif.size() > *depth ) ? TO_MUCH_FOR_DEPTH : NO_ERROR;
     *line_number = line;
     file.close();
     return mif;
 }
 
-std::vector<int> parse_instruction( std::string instr, int *error, int curr_instruction_num, int stage )
+std::vector<int> parse_instruction( std::string instr, ErrorCode &error, int curr_instruction_num, int stage )
 {
     vector<int> ret;
-    int mif_instr = -1;
+    int mif_instr = 0;
     
     string in_s = "", rx_s = "", ry_s = "", imm_s = "";
     
     remove_pre_space( instr );
     
-    int error_label = NO_ERROR;
+    ErrorCode error_label = NO_ERROR;
     
     if( instr.find( ":" ) != string::npos )
     {
-        instr = parse_labelled_line( instr, curr_instruction_num, &error_label, stage );
+        instr = parse_labelled_line( instr, curr_instruction_num, error_label, stage );
         
         if( error_label != NO_ERROR )
         {
-            *error = error_label;
+            error = error_label;
             return ret;
         }
         else if( is_all_space( instr ) )
         {
-            *error = ONLY_LABEL;
+            error = ONLY_LABEL;
             return ret;
         }
         
@@ -276,28 +301,28 @@ std::vector<int> parse_instruction( std::string instr, int *error, int curr_inst
     }
     
     //determining if instruction is valid
-    int error_i = NO_ERROR, error_reg_x = NO_ERROR, error_reg_y = NO_ERROR, error_imm = NO_ERROR;
+    ErrorCode error_i = NO_ERROR, error_reg_x = NO_ERROR, error_reg_y = NO_ERROR, error_imm = NO_ERROR;
     int instruction = 0, rx = 0, ry = 0, imm = 0;
     
-    instruction = parse_i( in_s, &error_i );
-    rx = parse_reg( rx_s, &error_reg_x );
+    instruction = parse_i( in_s, error_i );
+    rx = parse_reg( rx_s, error_reg_x );
     
     if( instruction == MVI )
-        imm = parse_immediate( ry_s, &error_imm );
+        imm = parse_immediate( ry_s, error_imm );
     else if( instruction == BEQ  )
-        imm = parse_immediate( imm_s, &error_imm );
+        imm = parse_immediate( imm_s, error_imm );
     else
-        ry = parse_reg( ry_s, &error_reg_y );
+        ry = parse_reg( ry_s, error_reg_y );
     
-    *error = NO_ERROR;
+    error = NO_ERROR;
     if( error_i != NO_ERROR )
-        *error = error_i;
+        error = error_i;
     else if( error_reg_x != NO_ERROR )
-        *error = error_reg_x;
+        error = error_reg_x;
     else if( error_reg_y != NO_ERROR )
-        *error = error_reg_y;
+        error = error_reg_y;
     else if( error_imm != NO_ERROR && stage != PRE_PROCESS )    //pre process, ignore this error
-        *error = error_imm;
+        error = error_imm;
     else
         mif_instr = mask_mif_instr( instruction, rx, ry );
     //---------------------------------------------------//
@@ -313,7 +338,7 @@ std::vector<int> parse_instruction( std::string instr, int *error, int curr_inst
     return ret;
 }
 
-std::string parse_labelled_line( std::string instr, int curr_instr_num, int *error, int stage )
+std::string parse_labelled_line( std::string instr, int curr_instr_num, ErrorCode &error, int stage )
 {
     size_t pos_col = instr.find( ":" );
     
@@ -328,31 +353,31 @@ std::string parse_labelled_line( std::string instr, int curr_instr_num, int *err
     if( stage == PRE_PROCESS )
     {
         if( instr.find( " " ) != string::npos )
-            *error = LABEL_BAD;
+            error = LABEL_BAD;
         else if( label_def_to_line_num.find( instr ) != label_def_to_line_num.end() )
-            *error = LABEL_REDEF;
+            error = LABEL_REDEF;
         else
-            *error = NO_ERROR;
+            error = NO_ERROR;
         
         label_def_to_line_num[instr] = curr_instr_num + 1;  //label is for next instruction (current one being parsed)
     }
     else
     {
         //if we are in PROCESS stage, we know its a valid label, so skip, but still return parsed instruction
-        *error = NO_ERROR;
+        error = NO_ERROR;
     }
     
     return ret;
 }
 
 //parse instruction (bits 8:6 in encoding)
-int parse_i( std::string i, int *error )
+int parse_i( std::string i, ErrorCode &error )
 {
-    int ret = -1;
+    int ret = 0;
     
     i = to_lower( i );  //case insensitive instructions
     
-    *error = NO_ERROR;
+    error = NO_ERROR;
     
     //if, else if blocks compare i to defined strings in .h file
     //if they match return the corresponding instruction number
@@ -373,23 +398,23 @@ int parse_i( std::string i, int *error )
     else if( i == BREQ )
         ret = BEQ;
     else
-        *error = BAD_INSTR;
+        error = BAD_INSTR;
     
     return ret;
 }
 
 //parse x register (bits 5:3 in encoding), and y register (bits 2:0 in encoding)
-int parse_reg( std::string reg, int *error )
+int parse_reg( std::string reg, ErrorCode &error )
 {
-    *error = NO_ERROR;
+    error = NO_ERROR;
     
     for( int i = 0; i < REG_COUNT; i++ )
     {
-        if( to_lower( reg ) == REG_NAMES_L[i] )   //lower or uppercase
+        if( to_lower( reg ) == REG_NAMES_LIST[i] )   //lower or uppercase
             return i;
     }
     
-    *error = BAD_REG;
+    error = BAD_REG;
     return -1;
 }
 
@@ -404,7 +429,7 @@ string to_lower( string str )
 }
 
 //parses the immediate value given to MVI
-int parse_immediate( std::string imm, int *error )
+int parse_immediate( std::string imm, ErrorCode &error )
 {
     char *endptr;
     int num = strtol( imm.c_str(), &endptr, 0 );
@@ -414,25 +439,25 @@ int parse_immediate( std::string imm, int *error )
         //couldn't parse the entire string (most likely not a number),
         //check for label or define
         if( label_def_to_line_num.find( imm ) == label_def_to_line_num.end() )
-            *error = IMMED_LABEL_NF;
+            error = IMMED_LABEL_NF;
         else
             num = label_def_to_line_num[imm];
     }
     else
     {
-        if( num > MAX_INT_16U )
-            *error = BIG_IMMED;
+        if( num > ( (width_bits == 16) ? MAX_INT_16U : MAX_INT_32U ) )
+            error = BIG_IMMED;
         else if( num < 0 )
-            *error = NEG_IMMED;
+            error = NEG_IMMED;
         else
-            *error = NO_ERROR;
+            error = NO_ERROR;
     }
     
     return num;
 }
 
 //parse .define statements, only accepts int inputs, no labels or other defines
-int parse_define( std::string line )
+ErrorCode parse_define( std::string line )
 {
     size_t pos = line.find( ".define" );
     
@@ -467,7 +492,7 @@ int parse_define( std::string line )
     }
     else
     {
-        if( num > MAX_INT_16U )
+        if( num > ( (width_bits == 16) ? MAX_INT_16U : MAX_INT_32U ) )
             return DEFINE_BAD;
         else if( num < 0 )
             return DEFINE_BAD;
@@ -503,9 +528,9 @@ void write_to_file( string outfile, std::vector<int> instructions, int width, in
     
     //whats is actually written to the output file
     //Some info in comments first
-    file << "%For use in ECE342, Lab6%\n";
-    file << "%Disclaimer: I tried%\n\n";
-    file << "%Assumed encodings (note, beq instruction is optional!):%\n";
+    file << "% For use in ECE342, Lab6 %\n";
+    file << "% Disclaimer: I tried.... %\n\n";
+    file << "%Assumed Encodings (note, beq instruction is optional!):%\n";
     file << "%\tmv = 3'b000\t%\n";
     file << "%\tmvi = 3'b001\t%\n";
     file << "%\tadd = 3'b010\t%\n";
@@ -516,8 +541,23 @@ void write_to_file( string outfile, std::vector<int> instructions, int width, in
     file << "%\tbeq = 3'b111\t%\n\n";
     file << "%Assumed positions of instruction and register in 16 bit input%\n";
     file << "%I = instruction, X = x register, Y = y register, D = don't care%\n";
-    file << "%16      8       0%\n";
-    file << "% DDDDDDDIIIXXXYYY %\n\n";
+    
+    if( width_bits == 16 )
+    {
+        file << "% 16      8       0 %\n";
+        file << "%  DDDDDDDIIIXXXYYY %\n";
+    }
+    else
+    {
+        file << "% 31              15      8        0 %\n";
+        file << "%  DDDDDDDDDDDDDDDDDDDDDDDIIIXXXYYY  %\n";
+    }
+    
+    file << "%\tLITTLE ENDIAN\t%\n\n";
+    
+    file << "%For parts 6 and 7 of the lab, open this MIF file in quartus%\n";
+    file << "%and from the File menu select 'Save As' and save the file as a .hex file%\n";
+    file << "%and Quartus will automatically convert it to a HEX file%\n\n";
     //---------------------------//
     
     //start writing file
@@ -534,8 +574,7 @@ void write_to_file( string outfile, std::vector<int> instructions, int width, in
     
     for( int i = 0; i < instructions.size(); i++ )
     {
-        
-        file << i << " : " << hex << setw(4) << setfill('0') << uppercase << instructions[i];
+        file << i << " : " << hex << setw( ( (width_bits == 16) ? TWO_BYTE_DISPLAY : FOUR_BYTE_DISPLAY ) ) << setfill('0') << uppercase << instructions[i];
         
         //cannot be last instructions if it is a mvi
         if( is_instruction_mvi_or_beq( instructions[i] ) )
@@ -581,7 +620,7 @@ void look_at_outputfilename( string &str )
 }
 
 //confirm input file
-int look_at_inputfilename( string &str )
+ErrorCode look_at_inputfilename( string &str )
 {
     if( str.find( ".tys" ) == string::npos )
         return BAD_INFILE;
@@ -673,20 +712,21 @@ std::string instruction_to_str_comment( int instr, int next_instr )
     rx = ( (instr >> 3 ) & 0x0007 );    //0000 0000 0011 1000
     i = ( (instr >> 6 ) & 0x0007 );     //0000 0001 1100 0000
     
-    ret.append( instr_to_str[i] );
+    ret.append( INSTRU_TO_STR_LIST[i] );
     ret.append( " " );
-    ret.append( reg_num_to_reg_name[rx] );
+    ret.append( REG_NAMES_LIST[rx] );
     
     ret.append( " " );
     
-    ( i == MVI ) ? ret.append( std::to_string( next_instr ) ) : ret.append( reg_num_to_reg_name[ry] );
+    ( i == MVI ) ? ret.append( std::to_string( next_instr ) ) : ret.append( REG_NAMES_LIST[ry] );
     
     return ret;
 }
 
 //takes an error code and line number and prints the error message to STDOUT
-void print_error_message( int code, int line, int depth, int instruction_count )
+void print_error_message( ErrorCode code, int line, int depth, int instruction_count )
 {
+    unsigned int max_num = (width_bits == 16) ? MAX_INT_16U : MAX_INT_32U;
     switch ( code )
     {
         case BAD_FILE:
@@ -705,13 +745,13 @@ void print_error_message( int code, int line, int depth, int instruction_count )
             cout << "ERROR: line " << line << ": the immediate value could not be interpreted as an integer" << endl;
             break;
         case BIG_IMMED:
-            cout << "ERROR: line " << line << ": the immediate value is too large, it must be in the range [0, 65535]" << endl;
+            cout << "ERROR: line " << line << ": the immediate value is too large, it must be in the range [0, " << max_num << "]" << endl;
             break;
         case NEG_IMMED:
-            cout << "ERROR: line " << line << ": the immediate value must be unsigned in the range [0, 65535]" << endl;
+            cout << "ERROR: line " << line << ": the immediate value must be unsigned in the range [0, " << max_num << "]" << endl;
             break;
         case DEFINE_BAD:
-            cout << "ERROR: line " << line << ": bad define statement, must 16 bit unsigned int (possible problem)" << endl;
+            cout << "ERROR: line " << line << ": bad define statement, must " << width_bits << " bit unsigned int (possible problem)" << endl;
             break;
         case DEFINE_REDEF:
             cout << "ERROR: line " << line << ": define redefinition" << endl;
@@ -730,6 +770,12 @@ void print_error_message( int code, int line, int depth, int instruction_count )
             break;
         case TO_MUCH_FOR_DEPTH:
             cout << "ERROR MEMORY OVERFLOW: there are too many instructions for the depth of the memory: memory depth = " << depth << ", instruction count = " << instruction_count << "\n";
+            break;
+        case WIDTH_ERROR:
+            cout << "ERROR: Only 32 and 16 bit data widths are supported" << endl;
+            break;
+        case DEPTH_ERROR:
+            cout << "ERROR: Memory depth must be an integer multiple of 2" << endl;
             break;
         default:
             cout << "ERROR: Unknown, I missed it :(" << endl;

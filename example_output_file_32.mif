@@ -1,0 +1,43 @@
+% For use in ECE342, Lab6 %
+% Disclaimer: I tried.... %
+
+%Assumed Encodings (note, beq instruction is optional!):%
+%	mv = 3'b000	%
+%	mvi = 3'b001	%
+%	add = 3'b010	%
+%	sub = 3'b011	%
+%	ld = 3'b100	%
+%	st = 3'b101	%
+%	mvnz = 3'b110	%
+%	beq = 3'b111	%
+
+%Assumed positions of instruction and register in 16 bit input%
+%I = instruction, X = x register, Y = y register, D = don't care%
+% 31              15      8        0 %
+%  DDDDDDDDDDDDDDDDDDDDDDDIIIXXXYYY  %
+%	LITTLE ENDIAN	%
+
+%For parts 6 and 7 of the lab, open this MIF file in quartus%
+%and from the File menu select 'Save As' and save the file as a .hex file%
+%and Quartus will automatically convert it to a HEX file%
+
+WIDTH = 32;
+DEPTH = 128;
+ADDRESS_RADIX = HEX;
+DATA_RADIX = HEX;
+
+CONTENT
+BEGIN
+0 : 00000048;	%mvi r1 4112%
+1 : 00001010;
+2 : 00000070;	%mvi r6 5%
+3 : 00000005;
+4 : 00000058;	%mvi r3 1%
+5 : 00000001;
+6 : 00000027;	%mv r4 r7%
+7 : 00000171;	%st r6 r1%
+8 : 000000F3;	%sub r6 r3%
+9 : 000001BC;	%mvnz r7 r4%
+A : 00000078;	%mvi r7 0%
+B : 00000000;
+END;

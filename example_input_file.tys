@@ -2,7 +2,7 @@ DEPTH 128
 WIDTH 16
 
 # we can now add define statements!
-.define MEM_ADDRESS 0x1000
+.define MEM_ADDRESS 0x1010
 .define COUNT 5
 
 #starts at 5 and counts to 0, displaying the count on LEDR on each cycle
@@ -11,11 +11,11 @@ WIDTH 16
 #We can also now create labels to jump to!
 LOOP_FOREVER:
 mvi r1 MEM_ADDRESS
-mvi r0 COUNT	 #comments can go here, with a tab or space
+mvi r6 COUNT	 #comments can go here, with a tab or space
 mvi r3 1
 mv r4 r7
-st r0 r1
-sub r0 r3
+st r6 r1
+sub r6 r3
 mvnz r7 r4
 mvi r7 LOOP_FOREVER
 
