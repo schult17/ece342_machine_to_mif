@@ -58,7 +58,7 @@ int assemble( char *infile, char *outfile )
     return 0;
 }
 
-//find all labels and defines FIRST, inefficient, but whatever
+//find all labels and defines FIRST (as well as WIDTH/DEPTH flag), inefficient, but whatever
 ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int *depth)
 {
     ifstream file( infile );
@@ -75,7 +75,7 @@ ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int
     ErrorCode error;
     int line = 0, instruction_num = 0;
     vector<int> add;
-    size_t pos_depth, pos_width, pos_def;
+    size_t pos_depth = 0, pos_width = 0, pos_def = 0, pos_hashtag = 0;
     
     bool lined_comment = false;
     
@@ -89,75 +89,86 @@ ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int
             
             pos_def = instr.find( DEF_KEY );
             
+            pos_hashtag = instr.find( "#" );    //will ignore width, depth, define behind a comment
+            
             //finding labels and defines
             if( pos_width != string::npos )
             {
-                instr.erase( 0, pos_width + 5 );
-                
-                char *endptr;
-                int num = strtol( instr.c_str(), &endptr, 0 );
-                
-                if( *endptr != '\0' )
+                if( pos_hashtag > pos_width )   //ignore if its in a comment
                 {
-                    cout << instr << endl;
-                    error = WIDTH_DEPTH_ERROR;
-                    *line_number = line;
-                    file.close();
-                    return error;
-                }
-                else
-                {
-                    if( num != 32 && num != 16 )
+                    instr.erase( 0, pos_width + 5 );
+                    
+                    char *endptr;
+                    int num = strtol( instr.c_str(), &endptr, 0 );
+                    
+                    if( *endptr != '\0' )
                     {
-                        error = WIDTH_ERROR;
+                        cout << instr << endl;
+                        error = WIDTH_DEPTH_ERROR;
                         *line_number = line;
                         file.close();
                         return error;
                     }
                     else
                     {
-                        *width = num;
-                        width_bits = num;
+                        if( num != 32 && num != 16 )
+                        {
+                            error = WIDTH_ERROR;
+                            *line_number = line;
+                            file.close();
+                            return error;
+                        }
+                        else
+                        {
+                            *width = num;
+                            width_bits = num;
+                        }
                     }
                 }
             }
             else if( pos_depth != string::npos)
             {
-                instr.erase( 0, pos_depth + 5 );
-                
-                char *endptr;
-                int num = strtol( instr.c_str(), &endptr, 0 );
-                
-                if( *endptr != '\0' )
+                if( pos_hashtag > pos_depth )
                 {
-                    cout << instr << endl;
-                    error = WIDTH_DEPTH_ERROR;
-                    *line_number = line;
-                    file.close();
-                    return error;
-                }
-                else
-                {
-                    if( num % 2 )
+                    instr.erase( 0, pos_depth + 5 );
+                    
+                    char *endptr;
+                    int num = strtol( instr.c_str(), &endptr, 0 );
+                    
+                    if( *endptr != '\0' )
                     {
-                        error = DEPTH_ERROR;
+                        cout << instr << endl;
+                        error = WIDTH_DEPTH_ERROR;
                         *line_number = line;
                         file.close();
                         return error;
                     }
                     else
                     {
-                        *depth = num;
-                        depth_bytes = num;
+                        if( num % 2 )
+                        {
+                            error = DEPTH_ERROR;
+                            *line_number = line;
+                            file.close();
+                            return error;
+                        }
+                        else
+                        {
+                            *depth = num;
+                            depth_bytes = num;
+                        }
                     }
                 }
             }
             else if( pos_def != string::npos )
             {
-                error = parse_define( instr );
-                
-                if( error != NO_ERROR ) //got error on define
-                    break;
+                if( pos_hashtag > pos_def )
+                {
+                    error = parse_define( instr );
+                    
+                    if( error != NO_ERROR ) //got error on define
+                        break;
+                }
             }
             else
             {
@@ -195,7 +206,9 @@ vector<int> parse_fin( string infile, ErrorCode &error_code, int *line_number )
     ErrorCode error;
     int line = 0;
     vector<int> add;
-    size_t pos_depth = 0, pos_width = 0, pos_def = 0;
+    size_t pos_depth = 0, pos_width = 0, pos_def = 0, pos_hashtag = 0;
+    
+    bool found_behind_hash_tag = false;
     
     while( getline( file, instr ) )
     {
@@ -206,9 +219,16 @@ vector<int> parse_fin( string infile, ErrorCode &error_code, int *line_number )
             pos_depth = instr.find( "DEPTH" );
             
             pos_def = instr.find( DEF_KEY );
+            
+            pos_hashtag = instr.find( "#" );
+            
+            found_behind_hash_tag = false;
+            if( pos_width > pos_hashtag )   found_behind_hash_tag = true;
+            if( pos_depth > pos_hashtag )   found_behind_hash_tag = true;
+            if( pos_def > pos_hashtag )     found_behind_hash_tag = true;
         
             //all these cases handled in pre processing
-            if( !(pos_width != string::npos || pos_depth != string::npos || pos_def != string::npos) )
+            if( !( pos_width != string::npos || pos_depth != string::npos || pos_def != string::npos || found_behind_hash_tag ) )
             {
                 add = parse_instruction( instr, error, mif.size() - 1, PROCESS );
             
