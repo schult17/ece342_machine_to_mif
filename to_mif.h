@@ -43,6 +43,7 @@ enum ErrorCode
     TO_MUCH_FOR_DEPTH,
     WIDTH_ERROR,
     DEPTH_ERROR,
+    WIDTH_DEPTH_DEFINE,
     ONLY_LABEL      //internal error, not an actual error
 };
 

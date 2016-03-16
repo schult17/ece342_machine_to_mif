@@ -103,8 +103,14 @@ ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int
                     
                     if( *endptr != '\0' )
                     {
-                        cout << instr << endl;
                         error = WIDTH_DEPTH_ERROR;
+                        *line_number = line;
+                        file.close();
+                        return error;
+                    }
+                    else if( pos_def != string::npos )
+                    {
+                        error = WIDTH_DEPTH_DEFINE;
                         *line_number = line;
                         file.close();
                         return error;
@@ -139,6 +145,13 @@ ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int
                     {
                         cout << instr << endl;
                         error = WIDTH_DEPTH_ERROR;
+                        *line_number = line;
+                        file.close();
+                        return error;
+                    }
+                    else if( pos_def != string::npos )
+                    {
+                        error = WIDTH_DEPTH_DEFINE;
                         *line_number = line;
                         file.close();
                         return error;
@@ -795,6 +808,9 @@ void print_error_message( ErrorCode code, int line, int depth, int instruction_c
             break;
         case DEPTH_ERROR:
             cout << "ERROR: Memory depth must be an integer multiple of 2" << endl;
+            break;
+        case WIDTH_DEPTH_DEFINE:
+            cout << "ERROR: line " << line << ": symbols WIDTH and DEPTH are reserved, they cannot be defined using .define" << endl;
             break;
         default:
             cout << "ERROR: Unknown, I missed it :(" << endl;
