@@ -8,10 +8,11 @@ WIDTH 16
 #starts at 5 and counts to 0, displaying the count on LEDR on each cycle
 #note hex or decimal for immediate values works!
 
+#comments must be on there own line! (don't feel like adding more parsing!)
 #We can also now create labels to jump to!
 LOOP_FOREVER:
 mvi r1 MEM_ADDRESS
-mvi r6 COUNT	 #comments can go here, with a tab or space DEPTH
+mvi r6 COUNT
 mvi r3 1
 mv r4 r7
 st r6 r1

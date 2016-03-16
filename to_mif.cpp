@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <ctype.h>
 #include <unordered_map>
+#include <sstream>
 #include "to_mif.h"
 
 using namespace std;
@@ -72,12 +73,10 @@ ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int
     *depth = depth_bytes = 128;
     
     string instr;
-    ErrorCode error;
-    int line = 0, instruction_num = 0;
+    ErrorCode error = NO_ERROR;
+    int line = 1, instruction_num = 0;
     vector<int> add;
     size_t pos_depth = 0, pos_width = 0, pos_def = 0, pos_hashtag = 0;
-    
-    bool lined_comment = false;
     
     while( getline( file, instr ) )
     {
@@ -143,7 +142,6 @@ ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int
                     
                     if( *endptr != '\0' )
                     {
-                        cout << instr << endl;
                         error = WIDTH_DEPTH_ERROR;
                         *line_number = line;
                         file.close();
@@ -180,7 +178,11 @@ ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int
                     error = parse_define( instr );
                     
                     if( error != NO_ERROR ) //got error on define
-                        break;
+                    {
+                        *line_number = line;
+                        file.close();
+                        return error;
+                    }
                 }
             }
             else
@@ -188,9 +190,15 @@ ErrorCode find_all_labels( std::string infile, int *line_number, int *width, int
                 add = parse_instruction( instr, error, instruction_num - 1, PRE_PROCESS );
                 
                 if( error == NO_ERROR )
+                {
                     instruction_num += add.size();
+                }
                 else if( error != ONLY_LABEL )  //skip to next line if this line was only a label
-                    break;
+                {
+                    *line_number = line;
+                    file.close();
+                    return error;
+                }
             }
         }
         
@@ -217,7 +225,7 @@ vector<int> parse_fin( string infile, ErrorCode &error_code, int *line_number )
     
     string instr;
     ErrorCode error;
-    int line = 0;
+    int line = 1;
     vector<int> add;
     size_t pos_depth = 0, pos_width = 0, pos_def = 0, pos_hashtag = 0;
     
@@ -290,7 +298,8 @@ std::vector<int> parse_instruction( std::string instr, ErrorCode &error, int cur
             error = error_label;
             return ret;
         }
-        else if( is_all_space( instr ) )
+        
+        if( is_all_space( instr ) )
         {
             error = ONLY_LABEL;
             return ret;
@@ -339,12 +348,19 @@ std::vector<int> parse_instruction( std::string instr, ErrorCode &error, int cur
     instruction = parse_i( in_s, error_i );
     rx = parse_reg( rx_s, error_reg_x );
     
-    if( instruction == MVI )
+    if( instruction == MVI )  //beq has y register and immediate value
+    {
         imm = parse_immediate( ry_s, error_imm );
+    }
     else if( instruction == BEQ  )
+    {
+        ry = parse_reg( ry_s, error_imm );
         imm = parse_immediate( imm_s, error_imm );
+    }
     else
+    {
         ry = parse_reg( ry_s, error_reg_y );
+    }
     
     error = NO_ERROR;
     if( error_i != NO_ERROR )
@@ -391,7 +407,7 @@ std::string parse_labelled_line( std::string instr, int curr_instr_num, ErrorCod
         else
             error = NO_ERROR;
         
-        label_def_to_line_num[instr] = curr_instr_num + 1;  //label is for next instruction (current one being parsed)
+        label_def_to_line_num[instr] = curr_instr_num + 1;  //label is always for next instruction
     }
     else
     {
@@ -558,7 +574,7 @@ void write_to_file( string outfile, std::vector<int> instructions, int width, in
         return;
     }
     
-    //whats is actually written to the output file
+    //what is actually written to the output file
     //Some info in comments first
     file << "% For use in ECE342, Lab6 %\n";
     file << "% Disclaimer: I tried.... %\n\n";
@@ -601,7 +617,7 @@ void write_to_file( string outfile, std::vector<int> instructions, int width, in
     file << "CONTENT\n";
     file << "BEGIN\n";
     
-    int last_instr_mvi = 0;
+    int last_instr_mvi_beq = 0;
     int mvi_beq_num = 0;
     
     for( int i = 0; i < instructions.size(); i++ )
@@ -618,22 +634,26 @@ void write_to_file( string outfile, std::vector<int> instructions, int width, in
         {
             mvi_beq_num = -1;
         }
-            
         
         //adding comment to line if this line is not second part of MVI or BEQ instruction
-        if( last_instr_mvi )
+        if( last_instr_mvi_beq )
             file << ";\n";
         else
             file << ";\t%" << instruction_to_str_comment( instructions[i], mvi_beq_num ) << "%\n";
         
-        
-        last_instr_mvi = is_instruction_mvi_or_beq( instructions[i] );
+        if( !last_instr_mvi_beq )
+            last_instr_mvi_beq = is_instruction_mvi_or_beq( instructions[i] );
+        else
+            last_instr_mvi_beq = 0;
     }
     
-    file << "END;\n";
+    file << "END;\n\n";
     //---------------------------------------------//
     
-    cout << "MIF-IFY SUCCESS: output file written to: \"" << outfile << "\"" << endl;
+    cout << "----------------------------------------------------------------------------------" << endl;
+    cout << "--\t\tMIF-IFY SUCCESS: output file written to: \"" << outfile << "\"\t\t--" << endl;
+    cout << "--\tMake sure to double check that the MIF file matches what you expect!\t--" << endl;
+    cout << "----------------------------------------------------------------------------------" << endl;
     
     file.close();
 }
@@ -713,8 +733,8 @@ int is_comment( string str )
     remove_pre_space( str );    //remove leading spaces
     
     //if first character after removing leading spaces is a #, its comment, ignore
-    //two options for comments now ( # and %)
-    return ( str[0] == '#' || str[0] == '%' ) ? 1 : 0;
+    //if line is nothing, pretend it is a comment (blank line)
+    return ( ( str.size() <= 0 ) ? 1 : ( ( str[0] == '#' ) ? 1 : 0 ) );
 }
 
 //checks if a line is all white space or not
@@ -731,34 +751,39 @@ int is_all_space( std::string i )
 
 int is_instruction_mvi_or_beq( int instr )
 {
-    return ( instr >> 6 == MVI || instr >> 6 == BEQ );
+    int i = ( instr >> 6 ) & 0x0007;
+    return ( i == MVI || i == BEQ );
 }
 
 std::string instruction_to_str_comment( int instr, int next_instr )
 {
-    //build comment for
-    string ret = "";
+    //build comment for instruction
+    stringstream ss;
     int rx, ry, i;
     
     ry = (instr & 0x0007);              //0000 0000 0000 0111
     rx = ( (instr >> 3 ) & 0x0007 );    //0000 0000 0011 1000
     i = ( (instr >> 6 ) & 0x0007 );     //0000 0001 1100 0000
     
-    ret.append( INSTRU_TO_STR_LIST[i] );
-    ret.append( " " );
-    ret.append( REG_NAMES_LIST[rx] );
+    ss << INSTRU_TO_STR_LIST[i] << "  " << REG_NAMES_LIST[rx] << " ";
     
-    ret.append( " " );
+    if( i == MVI )
+        ss << std::to_string( next_instr );
+    else if ( i == BEQ )
+        ss << REG_NAMES_LIST[ry] << uppercase << hex << " 0x" << next_instr;
+    else
+        ss << REG_NAMES_LIST[ry];
     
-    ( i == MVI ) ? ret.append( std::to_string( next_instr ) ) : ret.append( REG_NAMES_LIST[ry] );
-    
-    return ret;
+    return ss.str();
 }
 
 //takes an error code and line number and prints the error message to STDOUT
 void print_error_message( ErrorCode code, int line, int depth, int instruction_count )
 {
     unsigned int max_num = (width_bits == 16) ? MAX_INT_16U : MAX_INT_32U;
+    
+    cout << "----------------------------------------------------------------------------------" << endl;
+    
     switch ( code )
     {
         case BAD_FILE:
@@ -817,5 +842,6 @@ void print_error_message( ErrorCode code, int line, int depth, int instruction_c
             break;
     }
     
-    cout << "MIF-IFY FAILED " << code << endl;
+    cout << "MIF-IFY FAILED with error code " << code << "  :<" << endl;
+    cout << "----------------------------------------------------------------------------------" << endl;
 }
